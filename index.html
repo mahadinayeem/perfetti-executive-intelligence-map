@@ -1579,14 +1579,27 @@ aside::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
         <div class="irow"><span class="irk">Institution Name (BN)</span><span class="irv" id="oppMNameBn" style="font-weight:700;">-</span></div>
         <div class="irow"><span class="irk">Category / Type</span><span class="irv" id="oppMCat">-</span></div>
         <div class="irow"><span class="irk">Territory / Upazila</span><span class="irv" id="oppMTerritory">-</span></div>
-        <div class="irow"><span class="irk">PVM Outlets (within 200m)</span><span class="irv" id="oppMCnt200" style="color:var(--blue);">-</span></div>
+        <div class="irow"><span class="irk">PVM Outlets (within 200m)</span><span class="irv" id="oppMCnt200" style="color:var(--blue);font-weight:800;">-</span></div>
         <div class="irow"><span class="irk">Nearest PVM Outlet</span><span class="irv" id="oppMNearOutlet" style="font-size:11px;">-</span></div>
-        <div class="irow"><span class="irk">Nearest Store Status</span><span class="irv" id="oppMNearStatus">-</span></div>
+        <div class="irow"><span class="irk">Surrounding Commercial Footprint</span><span class="irv" id="oppMDensityFootprint" style="font-weight:700;color:#38bdf8;">-</span></div>
       </div>
 
-      <div style="margin-top: 14px; padding: 12px; background: rgba(0, 86, 179, 0.08); border-left: 3px solid #0056b3; border-radius: 4px;">
-        <div style="font-size: 11px; font-weight: 800; color: #0056b3; text-transform: uppercase; margin-bottom: 4px;">⚡ Commercial Action Recommendation:</div>
-        <div id="oppMRecommendation" style="font-size: 12px; color: var(--t1); line-height: 1.4;"></div>
+      <!-- Real Nearby PVM Stores Box (Green Case) -->
+      <div id="oppMNearbyStoresBox" style="display:none;margin-top:12px;padding:12px;background:rgba(16,185,129,0.08);border-left:3px solid #10b981;border-radius:6px;">
+        <div style="font-size:11px;font-weight:800;color:#10b981;text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
+          <span>🛍️ 200 মিটারের ভেতরের সক্রিয় PVM স্টোর তালিকা:</span>
+          <span id="oppMNearbyStoresCount" style="font-family:var(--mono);font-size:11px;background:#10b981;color:#fff;padding:1px 6px;border-radius:4px;"></span>
+        </div>
+        <div id="oppMNearbyStoresList" style="font-size:11.5px;max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;"></div>
+      </div>
+
+      <!-- Real Map-Analysis Commercial Action Box (Red Case) -->
+      <div id="oppMMapAnalysisBox" style="margin-top: 12px; padding: 12px; background: rgba(0, 86, 179, 0.08); border-left: 3px solid #0056b3; border-radius: 4px;">
+        <div style="font-size: 11px; font-weight: 800; color: #0056b3; text-transform: uppercase; margin-bottom: 4px; display:flex; justify-content:space-between; align-items:center;">
+          <span>⚡ ম্যাপ বিশ্লেষণ ও নতুন স্টোর স্কোপ:</span>
+          <span id="oppMPotentialBadge" style="background:#ef4444;color:#fff;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;"></span>
+        </div>
+        <div id="oppMRecommendation" style="font-size: 12px; color: var(--t1); line-height: 1.45;"></div>
       </div>
 
       <div style="margin-top: 12px; padding: 12px; background: rgba(16, 185, 129, 0.08); border-left: 3px solid #10b981; border-radius: 4px;">
@@ -3284,9 +3297,10 @@ function drillThana(thanaName, distName, divIdx, feat) {
   }
 
   renderInverseMask();
-  renderMicroOutlets(curDivIdx, distName, thanaName);
-  if (window.currentPortalMode === 'opportunity' && typeof renderOpportunityHubs === 'function') {
-    renderOpportunityHubs();
+  if (window.currentPortalMode === 'opportunity' || window.isOppPortalActive) {
+    if (typeof renderOpportunityHubs === 'function') renderOpportunityHubs();
+  } else {
+    renderMicroOutlets(curDivIdx, distName, thanaName);
   }
 }
 
@@ -3385,7 +3399,11 @@ function drillUnion(unionName, thanaName, distName, divIdx) {
   updateBC();
   updateKPIs();
   updateAdminSummaryPanel();
-  renderMicroOutlets(curDivIdx, distName, thanaName);
+  if (window.currentPortalMode === 'opportunity' || window.isOppPortalActive) {
+    if (typeof renderOpportunityHubs === 'function') renderOpportunityHubs();
+  } else {
+    renderMicroOutlets(curDivIdx, distName, thanaName);
+  }
 }
 
 /* ═══════════════ RESET TO NATIONAL ═══════════════ */
@@ -3415,6 +3433,11 @@ function resetNational(){
 
 /* ═══════════════ 3. RENDER MICRO OUTLETS (HIGH CONTRAST & DIRECT CLICK) ═══════════════ */
 function renderMicroOutlets(divIdx, distName, thanaName) {
+  if (window.isOppPortalActive || window.currentPortalMode === 'opportunity') {
+    if (typeof microOutletLayer !== 'undefined' && microOutletLayer) microOutletLayer.clearLayers();
+    if (typeof clusterGrp !== 'undefined' && clusterGrp) clusterGrp.clearLayers();
+    return;
+  }
   clusterGrp.clearLayers();
   if (microOutletLayer) microOutletLayer.clearLayers();
   pillarLayer.clearLayers();
@@ -4993,6 +5016,103 @@ window.setOppScope = function(scope) {
   filterOppData();
 };
 
+function getDistMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function analyzeNearbyPVMStores(schoolLat, schoolLng, divName, distName, thanaName) {
+  const dName = divName || activeDivision || 'Dhaka';
+  const curDivIdx = (typeof DIV_NAMES !== 'undefined' && DIV_NAMES.indexOf(dName) >= 0) ? DIV_NAMES.indexOf(dName) : 0;
+  const allOutlets = (typeof CEO_OUTLETS !== 'undefined' ? CEO_OUTLETS[curDivIdx] : null) || [];
+  
+  // Spatial bounding-box prefilter: ~0.012 deg ≈ 1.3 km
+  const candidates = allOutlets.filter(o => {
+    if (!o[0] || !o[1]) return false;
+    return (Math.abs(o[0] - schoolLat) <= 0.012 && Math.abs(o[1] - schoolLng) <= 0.012);
+  });
+
+  const within200 = [];
+  const within500 = [];
+  let nearest = null;
+  let minD = 999999;
+
+  for (let i = 0; i < candidates.length; i++) {
+    const o = candidates[i];
+    const d = getDistMeters(schoolLat, schoolLng, o[0], o[1]);
+    const item = {
+      lat: o[0],
+      lng: o[1],
+      id: o[2],
+      name: o[3],
+      distM: Math.round(d),
+      rev: o[8] || 0,
+      visits: o[9] || 0,
+      orders: o[13] || 0,
+      srName: o[12] || 'Unassigned',
+      status: o[7] || 'R',
+      thana: o[16] || '',
+      union: o[17] || ''
+    };
+
+    if (d < minD) {
+      minD = d;
+      nearest = item;
+    }
+
+    if (d <= (window.oppRadius || 200)) {
+      within200.push(item);
+    }
+    if (d <= 500) {
+      within500.push(item);
+    }
+  }
+
+  within200.sort((a, b) => a.distM - b.distM);
+  within500.sort((a, b) => a.distM - b.distM);
+
+  const c500 = within500.length;
+  let densityCategory = 'স্বল্প বাণিজ্যিক এলাকা';
+  let estMin = 1;
+  let estMax = 2;
+
+  if (c500 >= 16) {
+    densityCategory = `উচ্চ বাণিজ্যিক ঘনত্ব (${c500}টি বাণিজ্যিক দোকান ৫০০মি-এ)`;
+    estMin = 4;
+    estMax = 7;
+  } else if (c500 >= 7) {
+    densityCategory = `মাঝারি বাণিজ্যিক ঘনত্ব (${c500}টি বাণিজ্যিক দোকান ৫০০মি-এ)`;
+    estMin = 2;
+    estMax = 4;
+  } else if (c500 >= 2) {
+    densityCategory = `আবাসিক / স্থানীয় সড়ক (${c500}টি দোকান ৫০০মি-এ)`;
+    estMin = 1;
+    estMax = 2;
+  } else {
+    densityCategory = `নির্জন / স্বল্প বাজার এলাকা (${c500}টি দোকান ৫০০মি-এ)`;
+    estMin = 1;
+    estMax = 1;
+  }
+
+  return {
+    within200: within200,
+    within500: within500,
+    nearest: nearest,
+    minDist: Math.round(minD),
+    densityCategory: densityCategory,
+    estMin: estMin,
+    estMax: estMax,
+    c500: c500,
+    isCovered: within200.length > 0
+  };
+}
+window.analyzeNearbyPVMStores = analyzeNearbyPVMStores;
+
 function renderOpportunityHubs() {
   const rawRecords = (typeof PVM_OPP_HUBS !== 'undefined' && PVM_OPP_HUBS) ? PVM_OPP_HUBS : (window.PVM_OPP_HUBS || (typeof PVM_EDUCATIONAL_DATA !== 'undefined' ? PVM_EDUCATIONAL_DATA.records : null));
   if (!rawRecords || rawRecords.length === 0) {
@@ -5002,7 +5122,10 @@ function renderOpportunityHubs() {
   initOpportunityModule();
   window.oppMarkerLayer.clearLayers();
 
-  // 100m: 16 (c100), 200m: 11 (c200), 300m: 17 (c300), 500m: 12 (c500)
+  // Hide retail outlet layers when rendering Institutional Gaps
+  if (typeof microOutletLayer !== 'undefined' && microOutletLayer) microOutletLayer.clearLayers();
+  if (typeof clusterGrp !== 'undefined' && clusterGrp) clusterGrp.clearLayers();
+
   const radiusCol = {
     100: 16,
     200: 11,
@@ -5013,8 +5136,8 @@ function renderOpportunityHubs() {
   const selScope = window.oppScope || 'AUTO';
   const inScopeHubs = [];
 
-  let cntGap = 0;       // 🔴 Red: 0 outlets (Opportunity to open new outlet)
-  let cntCovered = 0;   // 🟢 Green: Has outlet within 100-200m
+  let cntGap = 0;       // 🔴 Red: 0 outlets within 200m
+  let cntCovered = 0;   // 🟢 Green: Has outlet within 200m
 
   for (let i = 0; i < rawRecords.length; i++) {
     const r = rawRecords[i];
@@ -5092,7 +5215,7 @@ function renderOpportunityHubs() {
     window.oppDataFiltered.push(item);
   }
 
-  // Render small crisp dots directly on the map (Radius: 4.5px)
+  // Render small crisp educational dots on the map (Radius: 4.5px)
   window.oppDataFiltered.forEach(item => {
     const r = item.rec;
     const lat = r[0];
@@ -5101,14 +5224,11 @@ function renderOpportunityHubs() {
     const cat = r[3];
     const upazila = r[4];
     const dist = r[5];
-    const minD = r[6];
-    const hasOutlet = item.hasOutlet;
-    const count = item.countInRadius;
+    const divName = r[18] || 'Dhaka';
 
-    // 🟢 Green = Has outlet within 100-200m
-    // 🔴 Red = No outlet within 100-200m (Opportunity to open outlet)
+    const analysis = analyzeNearbyPVMStores(lat, lng, divName, dist, upazila);
+    const hasOutlet = analysis.isCovered;
     const dotColor = hasOutlet ? '#10b981' : '#ef4444';
-    const distDisplay = minD >= 1000 ? (minD/1000).toFixed(1) + ' km' : minD.toLocaleString() + ' m';
 
     const cm = L.circleMarker([lat, lng], {
       radius: 4.5,
@@ -5121,20 +5241,50 @@ function renderOpportunityHubs() {
       pane: 'markerPane'
     });
 
-    const tooltipContent = `
-      <div style="font-family:'Outfit',sans-serif;font-size:12px;padding:3px;min-width:210px;">
-        <div style="color:${dotColor};font-weight:900;text-transform:uppercase;font-size:10.5px;margin-bottom:2px;">
-          ${hasOutlet ? '🟢 OUTLET AVAILABLE (' + count + ' IN RANGE)' : '🔴 NEW OUTLET OPPORTUNITY (0 STORES)'}
+    let tooltipContent = '';
+    if (hasOutlet) {
+      const storeListHtml = analysis.within200.slice(0, 3).map(s => 
+        `<div style="display:flex;justify-content:space-between;gap:8px;"><span>• <b>${s.name}</b></span><span style="color:#34d399;font-weight:700;">${s.distM} মি.</span></div>`
+      ).join('');
+      const moreText = analysis.within200.length > 3 ? `<div style="color:#94a3b8;font-size:10px;margin-top:2px;">+ আরও ${analysis.within200.length - 3}টি সক্রিয় PVM স্টোর রয়েছে</div>` : '';
+
+      tooltipContent = `
+        <div style="font-family:'Outfit',sans-serif;font-size:12px;padding:3px;min-width:230px;">
+          <div style="color:#10b981;font-weight:900;text-transform:uppercase;font-size:10.5px;margin-bottom:2px;display:flex;align-items:center;gap:4px;">
+            <span>🟢 স্কুল কভার্ড</span> <span>(${analysis.within200.length}টি PVM স্টোর ২০০মি-এ)</span>
+          </div>
+          <div style="font-weight:900;font-size:13px;color:#fff;margin-bottom:3px;">${name}</div>
+          <div style="font-size:11px;color:#94a3b8;line-height:1.4;">
+            • ধরন: <b style="color:#38bdf8;">${cat}</b> (${upazila}, ${dist})<br>
+          </div>
+          <div style="margin-top:4px;border-top:1px dashed rgba(255,255,255,0.25);padding-top:4px;font-size:11px;color:#e2e8f0;">
+            <div style="font-weight:800;color:#a7f3d0;margin-bottom:3px;">🛍️ ২০০ মিটারের ভেতরের পারফেত্তি দোকান:</div>
+            ${storeListHtml}
+            ${moreText}
+          </div>
+          <div style="font-size:10.5px;color:#38bdf8;font-weight:700;margin-top:5px;">👉 ক্লিক করে সম্পূর্ণ আউটলেট লিস্ট ও বিবরণ দেখুন</div>
         </div>
-        <div style="font-weight:800;font-size:13px;color:#fff;margin-bottom:3px;">${name}</div>
-        <div style="font-size:11px;color:#94a3b8;line-height:1.4;">
-          • Type: <b style="color:#38bdf8;">${cat}</b> (${upazila}, ${dist})<br>
-          • Nearest PVM Store: <b style="color:${minD > 200 ? '#f87171' : '#4ade80'};">${distDisplay} Away</b><br>
-          ${hasOutlet ? '• Store Name: <b style="color:#fff;">' + (r[9]||'PVM Store') + '</b>' : '• Action: <b style="color:#ef4444;">Open / Onboard Retailer Here</b>'}
+      `;
+    } else {
+      const nearText = analysis.nearest ? `${analysis.nearest.name} (${analysis.nearest.distM} মি. দূরে)` : '২০০ মিটারের মধ্যে নেই';
+      tooltipContent = `
+        <div style="font-family:'Outfit',sans-serif;font-size:12px;padding:3px;min-width:235px;">
+          <div style="color:#ef4444;font-weight:900;text-transform:uppercase;font-size:10.5px;margin-bottom:2px;display:flex;align-items:center;gap:4px;">
+            <span>🔴 ০ টি PVM আউটলেট</span> <span>(২০০ মিটারের মধ্যে)</span>
+          </div>
+          <div style="font-weight:900;font-size:13px;color:#fff;margin-bottom:3px;">${name}</div>
+          <div style="font-size:11px;color:#94a3b8;line-height:1.4;">
+            • ধরন: <b style="color:#38bdf8;">${cat}</b> (${upazila}, ${dist})<br>
+          </div>
+          <div style="margin-top:4px;border-top:1px dashed rgba(255,255,255,0.25);padding-top:4px;font-size:11px;color:#e2e8f0;line-height:1.45;">
+            • নিকটবর্তী PVM স্টোর: <b style="color:#f87171;">${nearText}</b><br>
+            • এলাকার বাণিজ্যিক ঘনত্ব: <b style="color:#38bdf8;">${analysis.densityCategory}</b><br>
+            • সম্ভাব্য নতুন দোকান স্কোপ: <b style="color:#34d399;font-weight:900;">${analysis.estMin}–${analysis.estMax} টি নতুন দোকান</b>
+          </div>
+          <div style="font-size:10.5px;color:#38bdf8;font-weight:700;margin-top:5px;">👉 ক্লিক করে ম্যাপের রিয়েল ডেটা অ্যানালাইসিস দেখুন</div>
         </div>
-        <div style="font-size:10.5px;color:#38bdf8;font-weight:700;margin-top:4px;">👉 Click for Full Opportunity Profile</div>
-      </div>
-    `;
+      `;
+    }
 
     cm.bindTooltip(tooltipContent, {
       direction: 'top',
@@ -5167,6 +5317,18 @@ function openOppModal(item) {
   const m = document.getElementById('oppModal');
   if (!m) return;
 
+  const lat = r[0];
+  const lng = r[1];
+  const name = r[2];
+  const cat = r[3];
+  const upazila = r[4];
+  const dist = r[5];
+  const divName = r[18] || 'Dhaka';
+
+  const analysis = analyzeNearbyPVMStores(lat, lng, divName, dist, upazila);
+  const hasOutlet = analysis.isCovered;
+  const rad = window.oppRadius || 200;
+
   const elName = document.getElementById('oppMName');
   const elSub = document.getElementById('oppMSub');
   const elStatusBanner = document.getElementById('oppMStatusBanner');
@@ -5177,77 +5339,99 @@ function openOppModal(item) {
   const elTerritory = document.getElementById('oppMTerritory');
   const elCnt200 = document.getElementById('oppMCnt200');
   const elNearOutlet = document.getElementById('oppMNearOutlet');
-  const elNearStatus = document.getElementById('oppMNearStatus');
+  const elDensityFootprint = document.getElementById('oppMDensityFootprint');
+  const elNearbyBox = document.getElementById('oppMNearbyStoresBox');
+  const elNearbyList = document.getElementById('oppMNearbyStoresList');
+  const elNearbyCount = document.getElementById('oppMNearbyStoresCount');
+  const elPotentialBadge = document.getElementById('oppMPotentialBadge');
   const elRec = document.getElementById('oppMRecommendation');
   const elEstDemand = document.getElementById('oppMEstDemand');
   const elMapsBtn = document.getElementById('oppMMapsBtn');
 
-  const cntR = item.countInRadius;
-  const minD = r[6] || 0;
-  const hasOutlet = item.hasOutlet;
-  const distDisplay = minD >= 1000 ? (minD/1000).toFixed(1) + ' km' : minD.toLocaleString() + ' meters';
+  if (elName) elName.textContent = name;
+  if (elSub) elSub.textContent = `${cat} • ${upazila}, ${dist} (${divName} Division)`;
+  if (elNameBn) elNameBn.textContent = r[14] || name;
+  if (elCat) elCat.textContent = cat;
+  if (elTerritory) elTerritory.textContent = `${upazila}, ${dist} (${divName})`;
+  if (elCnt200) elCnt200.textContent = hasOutlet ? `${analysis.within200.length} টি PVM আউটলেট (${rad} মিটারে)` : `০ টি আউটলেট (${rad} মিটারে)`;
+  if (elDensityFootprint) elDensityFootprint.textContent = analysis.densityCategory;
 
-  if (elName) elName.textContent = r[2];
-  if (elSub) elSub.textContent = `${r[3]} • ${r[4]}, ${r[5]} (${r[18] || ''} Division)`;
-  if (elNameBn) elNameBn.textContent = r[14] || r[2];
-  if (elCat) elCat.textContent = r[3];
-  if (elTerritory) elTerritory.textContent = `${r[4]}, ${r[5]} (${r[18] || ''})`;
-  if (elCnt200) elCnt200.textContent = hasOutlet ? `${cntR} Outlets within ${window.oppRadius}m` : `0 Outlets within ${window.oppRadius}m`;
-  if (elDistance) elDistance.textContent = `${distDisplay} Away`;
-  
+  const nearest = analysis.nearest;
   if (elNearOutlet) {
-    if (minD > 20000) {
-      elNearOutlet.textContent = `No PVM Store Mapped in Territory (Nearest: ${r[9]||'Dhaka Hub'})`;
+    if (nearest) {
+      elNearOutlet.textContent = `${nearest.name} (${nearest.distM} মিটার দূরে) [#${nearest.id}]`;
     } else {
-      elNearOutlet.textContent = `${r[9] || 'No PVM Store Mapped Nearby'} (${r[8] || 'N/A'})`;
+      elNearOutlet.textContent = 'নিকটবর্তী ৫০০ মিটারে কোনো পারফেত্তি স্টোর পাওয়া যায়নি';
     }
   }
 
-  if (elNearStatus) {
-    if (!hasOutlet) {
-      elNearStatus.textContent = '🔴 Untapped / Supply Gap (Opportunity to Open Store)';
-    } else {
-      const s = r[10];
-      elNearStatus.textContent = s === 'G' ? '🟢 Active Buyer (Regular Orders)' : '🟡 Store Exists in Walking Radius';
-    }
+  if (elDistance) {
+    elDistance.textContent = nearest ? `${nearest.distM} m Away` : 'No Store in Range';
   }
 
-  // Estimated student demand
+  // Estimated demand based on category & local density
   if (elEstDemand) {
-    const mult = r[3] === 'University' ? 2.5 : r[3] === 'College' ? 1.8 : r[3] === 'High School' ? 1.2 : 0.8;
-    const estVal = Math.round(18000 * mult);
+    const baseMult = cat === 'University' ? 2.5 : cat === 'College' ? 1.8 : cat === 'High School' ? 1.4 : 0.9;
+    const densityMult = analysis.c500 >= 16 ? 1.4 : analysis.c500 >= 7 ? 1.1 : 0.85;
+    const estVal = Math.round(20000 * baseMult * densityMult);
     elEstDemand.textContent = `~৳${estVal.toLocaleString()} / mo Potential`;
   }
 
-  // 🔴 Red = Opportunity Gap
-  // 🟢 Green = Outlet Available
-  if (!hasOutlet) {
-    if (elStatusBanner) {
-      elStatusBanner.style.background = 'rgba(239, 68, 68, 0.15)';
-      elStatusBanner.style.border = '1px solid rgba(239, 68, 68, 0.4)';
-    }
-    if (elStatusBadge) {
-      elStatusBadge.style.color = '#ef4444';
-      elStatusBadge.textContent = `🔴 NEW STORE OPPORTUNITY (0 PVM OUTLETS WITHIN ${window.oppRadius}M)`;
-    }
-    if (elRec) {
-      elRec.textContent = `Prime commercial opportunity! Daily student footfall is currently unserved by PVM confectionery lines. Deploy field SR to sign up / open a retail point near this school gate.`;
-    }
-  } else {
+  if (hasOutlet) {
+    // 🟢 GREEN: Show list of actual PVM stores
     if (elStatusBanner) {
       elStatusBanner.style.background = 'rgba(16, 185, 129, 0.15)';
       elStatusBanner.style.border = '1px solid rgba(16, 185, 129, 0.4)';
     }
     if (elStatusBadge) {
       elStatusBadge.style.color = '#10b981';
-      elStatusBadge.textContent = `🟢 OUTLET AVAILABLE (${cntR} PVM STORES WITHIN ${window.oppRadius}M)`;
+      elStatusBadge.textContent = `🟢 COVERED YOUTH HUB (${analysis.within200.length} PVM STORES IN ${rad}M)`;
+    }
+    if (elNearbyBox) elNearbyBox.style.display = 'block';
+    if (elNearbyCount) elNearbyCount.textContent = `${analysis.within200.length} Stores Found`;
+    if (elNearbyList) {
+      elNearbyList.innerHTML = analysis.within200.map((s, idx) => `
+        <div style="background:rgba(255,255,255,0.05);padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <b style="color:#fff;">${idx+1}. ${s.name}</b> <span style="font-size:10px;color:#94a3b8;">(#${s.id})</span><br>
+            <span style="font-size:10.5px;color:#94a3b8;">SR: <b style="color:#e2e8f0;">${s.srName}</b> | 4M Sales: <b style="color:#34d399;">৳${s.rev.toLocaleString()}</b> | Orders: <b>${s.orders}</b></span>
+          </div>
+          <span style="font-family:var(--mono);font-weight:800;color:#10b981;font-size:12px;background:rgba(16,185,129,0.15);padding:2px 8px;border-radius:4px;">${s.distM} m</span>
+        </div>
+      `).join('');
+    }
+    if (elPotentialBadge) {
+      elPotentialBadge.style.background = '#10b981';
+      elPotentialBadge.textContent = 'কভারেজ সক্রিয়';
     }
     if (elRec) {
-      elRec.textContent = `Existing retail store operates within student walking distance. Ensure primary placement of Center Fresh, Mentos & Alpenliebe jars.`;
+      elRec.innerHTML = `স্কুল গেটের ${rad} মিটার হাঁটার দূরত্বের মধ্যে ইতোমধ্যে <b>${analysis.within200.length}টি পারফেত্তি পার্টনার স্টোর</b> সক্রিয় রয়েছে। ছাত্র-ছাত্রীদের টিফিন ও ছুটির সময়ে চাহিদা মেটাতে এই দোকানগুলোতে <b>Center Fresh 50-Jar, Alpenliebe ও Chupa Chups</b> নিয়মিত স্টক রাখা নিশ্চিত করুন।`;
+    }
+  } else {
+    // 🔴 RED: Real Map Analysis & New Store Opening Opportunity
+    if (elStatusBanner) {
+      elStatusBanner.style.background = 'rgba(239, 68, 68, 0.15)';
+      elStatusBanner.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+    }
+    if (elStatusBadge) {
+      elStatusBadge.style.color = '#ef4444';
+      elStatusBadge.textContent = `🔴 0 PVM OUTLETS IN ${rad}M (UNSERVED YOUTH HUB)`;
+    }
+    if (elNearbyBox) elNearbyBox.style.display = 'none';
+    if (elPotentialBadge) {
+      elPotentialBadge.style.background = '#ef4444';
+      elPotentialBadge.textContent = `নতুন স্কোপ: ${analysis.estMin}–${analysis.estMax} টি দোকান`;
+    }
+    if (elRec) {
+      const nearStr = nearest ? `নিকটবর্তী পারফেত্তি দোকান <b>${nearest.name}</b> (${nearest.distM} মিটার দূরে) যা ছাত্র-ছাত্রীদের সরাসরি হাঁটার সীমার বাইরে।` : '';
+      elRec.innerHTML = `
+        <b>ম্যাপের জিওস্পেশিয়াল বিশ্লেষণ:</b> এই শিক্ষা প্রতিষ্ঠানের ৫০০ মিটারের মধ্যে বর্তমানে মোট <b>${analysis.c500}টি বাণিজ্যিক দোকান</b> রয়েছে, কিন্তু ২০০ মিটারের প্রধান ছাত্র-ছাত্রী হাঁটার এলাকায় পারফেত্তির কোনো আউটলেট নেই।<br>
+        ${nearStr} আশেপাশের এই বাণিজ্যিক ঘনত্বের ওপর ভিত্তি করে স্কুল গেট ও সংযোগ সড়কের চিহ্নিত মুদি/কনফেকশনারি দোকানে পারফেত্তি যুক্ত করে <b>আনুমানিক ${analysis.estMin}–${analysis.estMax}টি নতুন আউটলেট</b> খোলার সরাসরি সুযোগ রয়েছে।
+      `;
     }
   }
 
-  const gmapsLink = r[15] || `https://www.google.com/maps/search/?api=1&query=${r[0]},${r[1]}`;
+  const gmapsLink = r[15] || `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
   if (elMapsBtn) elMapsBtn.href = gmapsLink;
 
   m.classList.add('vis');
