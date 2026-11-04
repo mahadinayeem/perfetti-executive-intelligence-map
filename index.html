@@ -1615,22 +1615,18 @@ aside::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
 <!-- Opportunity Legend Overlay -->
 <div class="opp-legend-box" id="oppLegend" style="display:none;">
   <div style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
-    🎓 Educational Opportunity Legend
+    🎓 Institutional Retail Opportunity Legend
   </div>
-  <div class="opp-leg-item">
-    <div class="opp-dot" style="background:#ef4444; box-shadow: 0 0 8px #ef4444;"></div>
-    <span>🔴 Opportunity Gap (0 PVM Outlets in Range)</span>
+  <div class="opp-leg-item" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+    <div style="width:10px;height:10px;border-radius:50%;background:#ef4444;border:1.5px solid #fff;box-shadow:0 0 6px rgba(239,68,68,0.8);flex-shrink:0;"></div>
+    <span style="font-size:12px;font-weight:700;color:#fff;">🔴 New Store Opportunity <span style="color:#f87171;font-weight:500;">(0 Outlets in 100–200m)</span></span>
   </div>
-  <div class="opp-leg-item">
-    <div class="opp-dot" style="background:#f59e0b; box-shadow: 0 0 8px #f59e0b;"></div>
-    <span>🟡 At-Risk / Untapped Outlets in Range</span>
+  <div class="opp-leg-item" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+    <div style="width:10px;height:10px;border-radius:50%;background:#10b981;border:1.5px solid #fff;box-shadow:0 0 6px rgba(16,185,129,0.8);flex-shrink:0;"></div>
+    <span style="font-size:12px;font-weight:700;color:#fff;">🟢 Outlet Available <span style="color:#34d399;font-weight:500;">(PVM Store in 100–200m)</span></span>
   </div>
-  <div class="opp-leg-item">
-    <div class="opp-dot" style="background:#10b981; box-shadow: 0 0 8px #10b981;"></div>
-    <span>🟢 Covered (Active PVM Buyer in Range)</span>
-  </div>
-  <div style="font-size: 10px; color: #64748b; margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px;">
-    Circles indicate student walking catchment radius.
+  <div style="font-size: 10.5px; color: #64748b; margin-top: 6px; line-height: 1.3;">
+    Small dots show student footfall locations. Red = Opportunity to open new retail outlet.
   </div>
 </div>
 
@@ -4865,65 +4861,20 @@ function updateAdminSummaryPanel() {
 
 
 // ============================================================================
-// PERFETTI VAN MELLE — INSTITUTIONAL OPPORTUNITY & SMART CLUSTERING MODULE
+// PERFETTI VAN MELLE — INSTITUTIONAL OPPORTUNITY & SMALL DOTS ENGINE
 // ============================================================================
 window.isOppPortalActive = false;
 window.oppRadius = 200; // 100, 200, 300, 500
 window.oppCat = 'ALL';
-window.oppStatus = 'ALL'; // 'ALL', 'GAP', 'AT_RISK', 'COVERED'
+window.oppStatus = 'ALL'; // 'ALL', 'GAP' (Red), 'COVERED' (Green)
 window.oppScope = 'AUTO'; // 'AUTO', 'METRO', 'ALL_BD', 'Chattogram', 'Dhaka', etc.
-window.oppClusterGrp = null;
-window.oppBufferLayer = null;
+window.oppMarkerLayer = null;
 window.oppDataFiltered = [];
 
 function initOpportunityModule() {
   if (!map) return;
-  if (!window.oppClusterGrp) {
-    window.oppClusterGrp = L.markerClusterGroup({
-      chunkedLoading: true,
-      maxClusterRadius: 50,
-      spiderfyOnMaxZoom: true,
-      showCoverageOnHover: false,
-      zoomToBoundsOnClick: true,
-      spiderfyDistanceMultiplier: 2.0,
-      iconCreateFunction: function(cluster) {
-        const markers = cluster.getAllChildMarkers();
-        const count = markers.length;
-        let gapCnt = 0, riskCnt = 0, covCnt = 0;
-        markers.forEach(m => {
-          const st = m.options.dynStatus;
-          if (st === 'GAP') gapCnt++;
-          else if (st === 'AT_RISK') riskCnt++;
-          else if (st === 'COVERED') covCnt++;
-        });
-
-        let bg = '#ef4444';
-        let glow = '0 0 16px rgba(239, 68, 68, 0.8)';
-        if (gapCnt === 0 && covCnt > 0) {
-          bg = '#10b981';
-          glow = '0 0 16px rgba(16, 185, 129, 0.8)';
-        } else if (gapCnt === 0 && riskCnt > 0) {
-          bg = '#f59e0b';
-          glow = '0 0 16px rgba(245, 158, 11, 0.8)';
-        }
-
-        const size = count < 10 ? 36 : count < 50 ? 44 : 52;
-        const pctGap = Math.round((gapCnt / count) * 100);
-
-        return L.divIcon({
-          html: `<div class="opp-cluster-bubble" title="Total Hubs: ${count} | 🔴 Gaps: ${gapCnt} (${pctGap}%) | 🟡 At-Risk: ${riskCnt} | 🟢 Covered: ${covCnt}" style="width:${size}px;height:${size}px;background:${bg};border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#ffffff;font-family:'JetBrains Mono',monospace;font-weight:900;border:2.5px solid #ffffff;box-shadow:${glow}, 0 4px 14px rgba(0,0,0,0.5);cursor:pointer;transition:transform 0.15s ease;">
-                   <div style="font-size:9.5px;line-height:1;margin-bottom:1px;">🎓</div>
-                   <div style="font-size:${count >= 100 ? '11px' : '12.5px'};line-height:1;letter-spacing:-0.5px;">${count}</div>
-                 </div>`,
-          className: '',
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size / 2]
-        });
-      }
-    });
-  }
-  if (!window.oppBufferLayer) {
-    window.oppBufferLayer = L.layerGroup();
+  if (!window.oppMarkerLayer) {
+    window.oppMarkerLayer = L.layerGroup().addTo(map);
   }
 }
 
@@ -4947,7 +4898,7 @@ function toggleOppPortalMode() {
   initOpportunityModule();
 
   if (window.isOppPortalActive) {
-    // Hide retail micro-markers
+    // Clear retail outlet markers
     if (typeof microOutletLayer !== 'undefined' && microOutletLayer) microOutletLayer.clearLayers();
     if (typeof clusterGrp !== 'undefined' && clusterGrp) clusterGrp.clearLayers();
     if (typeof pillarLayer !== 'undefined' && pillarLayer) pillarLayer.clearLayers();
@@ -4955,28 +4906,16 @@ function toggleOppPortalMode() {
     if (typeof routeLayer !== 'undefined' && routeLayer) routeLayer.clearLayers();
     if (typeof heatLayer !== 'undefined' && heatLayer && map.hasLayer(heatLayer)) map.removeLayer(heatLayer);
 
-    if (window.oppClusterGrp && !map.hasLayer(window.oppClusterGrp)) {
-      map.addLayer(window.oppClusterGrp);
-    }
-    if (window.oppBufferLayer && !map.hasLayer(window.oppBufferLayer)) {
-      map.addLayer(window.oppBufferLayer);
-    }
-
-    // Only set view to Dhaka Metro if no active division is chosen yet!
-    if (!activeDivision && window.oppScope === 'METRO') {
-      map.setView([23.777, 90.405], 11);
+    if (window.oppMarkerLayer && !map.hasLayer(window.oppMarkerLayer)) {
+      map.addLayer(window.oppMarkerLayer);
     }
 
     renderOpportunityHubs();
   } else {
-    // Turn off
-    if (window.oppClusterGrp && map.hasLayer(window.oppClusterGrp)) {
-      map.removeLayer(window.oppClusterGrp);
-      window.oppClusterGrp.clearLayers();
-    }
-    if (window.oppBufferLayer && map.hasLayer(window.oppBufferLayer)) {
-      map.removeLayer(window.oppBufferLayer);
-      window.oppBufferLayer.clearLayers();
+    // Turn off Opportunity mode
+    if (window.oppMarkerLayer && map.hasLayer(window.oppMarkerLayer)) {
+      window.oppMarkerLayer.clearLayers();
+      map.removeLayer(window.oppMarkerLayer);
     }
     if (typeof resetNational === 'function') {
       resetNational();
@@ -5026,7 +4965,6 @@ function setOppStatus(st) {
   const sts = {
     'ALL': 'kpiOppAll',
     'GAP': 'kpiOppGap',
-    'AT_RISK': 'kpiOppRisk',
     'COVERED': 'kpiOppCovered'
   };
   Object.keys(sts).forEach(k => {
@@ -5045,7 +4983,6 @@ function filterOppData() {
   const sel = document.getElementById('oppDistSelect');
   if (sel) {
     window.oppScope = sel.value;
-    // If user explicitly picked a division from dropdown, zoom map to that division
     if (window.oppScope !== 'AUTO' && window.oppScope !== 'ALL_BD' && window.oppScope !== 'METRO') {
       const dname = window.oppScope;
       const didx = typeof DIV_NAMES !== 'undefined' ? DIV_NAMES.indexOf(dname) : -1;
@@ -5076,12 +5013,9 @@ function renderOpportunityHubs() {
     console.warn('Educational Opportunity data not loaded');
     return;
   }
-  if (!window.oppClusterGrp) initOpportunityModule();
+  initOpportunityModule();
+  window.oppMarkerLayer.clearLayers();
 
-  window.oppClusterGrp.clearLayers();
-  if (window.oppBufferLayer) window.oppBufferLayer.clearLayers();
-
-  // Column mapping in PVM_OPP_HUBS:
   // 100m: 16 (c100), 200m: 11 (c200), 300m: 17 (c300), 500m: 12 (c500)
   const radiusCol = {
     100: 16,
@@ -5093,9 +5027,8 @@ function renderOpportunityHubs() {
   const selScope = window.oppScope || 'AUTO';
   const inScopeHubs = [];
 
-  let cntGap = 0;
-  let cntRisk = 0;
-  let cntCov = 0;
+  let cntGap = 0;       // 🔴 Red: 0 outlets (Opportunity to open new outlet)
+  let cntCovered = 0;   // 🟢 Green: Has outlet within 100-200m
 
   for (let i = 0; i < rawRecords.length; i++) {
     const r = rawRecords[i];
@@ -5103,45 +5036,37 @@ function renderOpportunityHubs() {
     const rDist = (r[5] || '').toLowerCase();
     const rUpz = (r[4] || '').toLowerCase();
 
-    // 1. Division / District Scope Filtering
+    // Scope Filtering
     if (selScope === 'AUTO') {
       if (activeDivision) {
         if (rDiv !== activeDivision.toLowerCase()) continue;
         if (activeDistrict && rDist !== activeDistrict.toLowerCase()) continue;
         if (activeThana && rUpz !== activeThana.toLowerCase()) continue;
       }
-      // If national view (no activeDivision), show all
     } else if (selScope === 'METRO') {
       if (rDist !== 'dhaka' && rDist !== 'narayanganj') continue;
     } else if (selScope === 'ALL_BD') {
       // Allow all nationwide
     } else {
-      // User selected specific division from dropdown: e.g. 'Chattogram', 'Dhaka', etc.
       const target = selScope.toLowerCase();
       if (rDiv !== target && rDist !== target) continue;
     }
 
     const countInRadius = r[radiusCol] || 0;
-    const nearStatus = r[10] || 'R';
+    const hasOutlet = (countInRadius > 0);
+    const dynStatus = hasOutlet ? 'COVERED' : 'GAP';
 
-    let dynStatus = 'GAP';
-    if (countInRadius === 0) {
-      dynStatus = 'GAP';
-      cntGap++;
+    if (hasOutlet) {
+      cntCovered++;
     } else {
-      if (nearStatus === 'G') {
-        dynStatus = 'COVERED';
-        cntCov++;
-      } else {
-        dynStatus = 'AT_RISK';
-        cntRisk++;
-      }
+      cntGap++;
     }
 
     inScopeHubs.push({
       rec: r,
       dynStatus: dynStatus,
-      countInRadius: countInRadius
+      countInRadius: countInRadius,
+      hasOutlet: hasOutlet
     });
   }
 
@@ -5151,14 +5076,12 @@ function renderOpportunityHubs() {
 
   const elTot = document.getElementById('oppValTotal');
   const elGap = document.getElementById('oppValGap');
-  const elRisk = document.getElementById('oppValRisk');
   const elCov = document.getElementById('oppValCovered');
   const elPct = document.getElementById('oppValPct');
 
   if (elTot) elTot.textContent = totalInScope.toLocaleString();
   if (elGap) elGap.textContent = cntGap.toLocaleString();
-  if (elRisk) elRisk.textContent = cntRisk.toLocaleString();
-  if (elCov) elCov.textContent = cntCov.toLocaleString();
+  if (elCov) elCov.textContent = cntCovered.toLocaleString();
   if (elPct) elPct.textContent = `${pctGap}%`;
 
   // Filter by Category and Status
@@ -5167,22 +5090,23 @@ function renderOpportunityHubs() {
     const item = inScopeHubs[i];
     const r = item.rec;
     
-    // Flexible category check
+    // Category check
     if (window.oppCat !== 'ALL') {
       const cat = (r[3] || '').toLowerCase();
       const target = window.oppCat.toLowerCase();
       if (!cat.includes(target) && !target.includes(cat)) continue;
     }
 
-    // Status check
-    if (window.oppStatus !== 'ALL' && item.dynStatus !== window.oppStatus) continue;
+    // Status check (All, GAP/Red, COVERED/Green)
+    if (window.oppStatus !== 'ALL') {
+      if (window.oppStatus === 'GAP' && item.hasOutlet) continue;
+      if (window.oppStatus === 'COVERED' && !item.hasOutlet) continue;
+    }
 
     window.oppDataFiltered.push(item);
   }
 
-  // Add Markers into Smart Cluster
-  const markersToAdd = [];
-
+  // Render small crisp dots directly on the map (Radius: 4.5px)
   window.oppDataFiltered.forEach(item => {
     const r = item.rec;
     const lat = r[0];
@@ -5191,64 +5115,64 @@ function renderOpportunityHubs() {
     const cat = r[3];
     const upazila = r[4];
     const dist = r[5];
-    const div = r[18] || '';
     const minD = r[6];
-    const st = item.dynStatus;
+    const hasOutlet = item.hasOutlet;
+    const count = item.countInRadius;
 
-    let color = '#ef4444';
-    let labelText = 'OPPORTUNITY GAP (0 OUTLETS IN ' + window.oppRadius + 'M)';
-    if (st === 'AT_RISK') {
-      color = '#f59e0b';
-      labelText = 'AT-RISK / UNTAPPED OUTLETS IN RANGE';
-    } else if (st === 'COVERED') {
-      color = '#10b981';
-      labelText = 'WELL-COVERED (ACTIVE PVM BUYER IN RANGE)';
-    }
-
-    const customIcon = L.divIcon({
-      className: '',
-      html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #ffffff;box-shadow:0 2px 6px rgba(0,0,0,0.45);cursor:pointer;"></div>`,
-      iconSize: [14, 14],
-      iconAnchor: [7, 7]
-    });
-
-    const mk = L.marker([lat, lng], {
-      icon: customIcon,
-      interactive: true,
-      dynStatus: st
-    });
-
+    // 🟢 Green = Has outlet within 100-200m
+    // 🔴 Red = No outlet within 100-200m (Opportunity to open outlet)
+    const dotColor = hasOutlet ? '#10b981' : '#ef4444';
     const distDisplay = minD >= 1000 ? (minD/1000).toFixed(1) + ' km' : minD.toLocaleString() + ' m';
 
+    const cm = L.circleMarker([lat, lng], {
+      radius: 4.5,
+      fillColor: dotColor,
+      color: '#ffffff',
+      weight: 1.2,
+      opacity: 1,
+      fillOpacity: 0.95,
+      interactive: true,
+      pane: 'markerPane'
+    });
+
     const tooltipContent = `
-      <div style="font-family:'Outfit',sans-serif;font-size:12px;padding:3px;min-width:200px;">
-        <div style="color:${color};font-weight:900;text-transform:uppercase;font-size:10px;margin-bottom:2px;">
-          ${st === 'GAP' ? '🔴' : st === 'AT_RISK' ? '🟡' : '🟢'} ${labelText}
+      <div style="font-family:'Outfit',sans-serif;font-size:12px;padding:3px;min-width:210px;">
+        <div style="color:${dotColor};font-weight:900;text-transform:uppercase;font-size:10.5px;margin-bottom:2px;">
+          ${hasOutlet ? '🟢 OUTLET AVAILABLE (' + count + ' IN RANGE)' : '🔴 NEW OUTLET OPPORTUNITY (0 STORES)'}
         </div>
-        <div style="font-weight:800;font-size:13px;color:#fff;margin-bottom:2px;">${name}</div>
-        <div style="font-size:11px;color:#94a3b8;margin-bottom:4px;">
+        <div style="font-weight:800;font-size:13px;color:#fff;margin-bottom:3px;">${name}</div>
+        <div style="font-size:11px;color:#94a3b8;line-height:1.4;">
           • Type: <b style="color:#38bdf8;">${cat}</b> (${upazila}, ${dist})<br>
-          • Nearest PVM Outlet: <b style="color:${minD > 200 ? '#f87171' : '#4ade80'};">${distDisplay} Away</b>
+          • Nearest PVM Store: <b style="color:${minD > 200 ? '#f87171' : '#4ade80'};">${distDisplay} Away</b><br>
+          ${hasOutlet ? '• Store Name: <b style="color:#fff;">' + (r[9]||'PVM Store') + '</b>' : '• Action: <b style="color:#ef4444;">Open / Onboard Retailer Here</b>'}
         </div>
-        <div style="font-size:10.5px;color:#38bdf8;font-weight:700;">👉 Click for Onboarding Lead Profile</div>
+        <div style="font-size:10.5px;color:#38bdf8;font-weight:700;margin-top:4px;">👉 Click for Full Opportunity Profile</div>
       </div>
     `;
 
-    mk.bindTooltip(tooltipContent, {
+    cm.bindTooltip(tooltipContent, {
       direction: 'top',
-      offset: [0, -8],
+      offset: [0, -6],
       className: 'opp-custom-tooltip'
     });
 
-    mk.on('click', (e) => {
-      L.DomEvent.stopPropagation(e);
-      openOppModal(item);
+    cm.on({
+      mouseover: () => {
+        cm.setRadius(7);
+        cm.setStyle({ weight: 2.2, color: '#ffffff' });
+      },
+      mouseout: () => {
+        cm.setRadius(4.5);
+        cm.setStyle({ weight: 1.2, color: '#ffffff' });
+      },
+      click: (e) => {
+        if (e && e.originalEvent) L.DomEvent.stopPropagation(e);
+        openOppModal(item);
+      }
     });
 
-    markersToAdd.push(mk);
+    window.oppMarkerLayer.addLayer(cm);
   });
-
-  window.oppClusterGrp.addLayers(markersToAdd);
 }
 window.renderOpportunityHubs = renderOpportunityHubs;
 
@@ -5274,7 +5198,7 @@ function openOppModal(item) {
 
   const cntR = item.countInRadius;
   const minD = r[6] || 0;
-  const st = item.dynStatus;
+  const hasOutlet = item.hasOutlet;
   const distDisplay = minD >= 1000 ? (minD/1000).toFixed(1) + ' km' : minD.toLocaleString() + ' meters';
 
   if (elName) elName.textContent = r[2];
@@ -5282,55 +5206,46 @@ function openOppModal(item) {
   if (elNameBn) elNameBn.textContent = r[14] || r[2];
   if (elCat) elCat.textContent = r[3];
   if (elTerritory) elTerritory.textContent = `${r[4]}, ${r[5]} (${r[18] || ''})`;
-  if (elCnt200) elCnt200.textContent = `${cntR} Outlets within ${window.oppRadius}m`;
+  if (elCnt200) elCnt200.textContent = hasOutlet ? `${cntR} Outlets within ${window.oppRadius}m` : `0 Outlets within ${window.oppRadius}m`;
   if (elDistance) elDistance.textContent = `${distDisplay} Away`;
+  
   if (elNearOutlet) {
     if (minD > 20000) {
-      elNearOutlet.textContent = `No PVM Store within territory (Nearest: ${r[9]||'Dhaka Hub'})`;
+      elNearOutlet.textContent = `No PVM Store Mapped in Territory (Nearest: ${r[9]||'Dhaka Hub'})`;
     } else {
       elNearOutlet.textContent = `${r[9] || 'No PVM Store Mapped Nearby'} (${r[8] || 'N/A'})`;
     }
   }
 
   if (elNearStatus) {
-    const s = r[10];
-    if (minD > 20000) {
-      elNearStatus.textContent = '🔴 Untapped Geographic Region (Prime Expansion Market)';
+    if (!hasOutlet) {
+      elNearStatus.textContent = '🔴 Untapped / Supply Gap (Opportunity to Open Store)';
     } else {
-      elNearStatus.textContent = s === 'G' ? '🟢 Active Buyer (Regular Orders)' : s === 'Y' ? '🟡 Visited by SR (0 Orders)' : '🔴 Untapped / Zero Sales';
+      const s = r[10];
+      elNearStatus.textContent = s === 'G' ? '🟢 Active Buyer (Regular Orders)' : '🟡 Store Exists in Walking Radius';
     }
   }
 
-  // Estimated demand
+  // Estimated student demand
   if (elEstDemand) {
     const mult = r[3] === 'University' ? 2.5 : r[3] === 'College' ? 1.8 : r[3] === 'High School' ? 1.2 : 0.8;
     const estVal = Math.round(18000 * mult);
-    elEstDemand.textContent = `~৳${estVal.toLocaleString()} / mo`;
+    elEstDemand.textContent = `~৳${estVal.toLocaleString()} / mo Potential`;
   }
 
-  if (st === 'GAP') {
+  // 🔴 Red = Opportunity Gap
+  // 🟢 Green = Outlet Available
+  if (!hasOutlet) {
     if (elStatusBanner) {
       elStatusBanner.style.background = 'rgba(239, 68, 68, 0.15)';
       elStatusBanner.style.border = '1px solid rgba(239, 68, 68, 0.4)';
     }
     if (elStatusBadge) {
       elStatusBadge.style.color = '#ef4444';
-      elStatusBadge.textContent = `🔴 PRIME OPPORTUNITY GAP (0 PVM OUTLETS WITHIN ${window.oppRadius}M)`;
+      elStatusBadge.textContent = `🔴 NEW STORE OPPORTUNITY (0 PVM OUTLETS WITHIN ${window.oppRadius}M)`;
     }
     if (elRec) {
-      elRec.textContent = `High-priority institutional onboarding! No PVM confectionery retailer currently operates within ${window.oppRadius}m student walking radius. Deploy local SR immediately to capture confectionery demand.`;
-    }
-  } else if (st === 'AT_RISK') {
-    if (elStatusBanner) {
-      elStatusBanner.style.background = 'rgba(245, 158, 11, 0.15)';
-      elStatusBanner.style.border = '1px solid rgba(245, 158, 11, 0.4)';
-    }
-    if (elStatusBadge) {
-      elStatusBadge.style.color = '#f59e0b';
-      elStatusBadge.textContent = `🟡 CONVERSION PIPELINE (${cntR} STORES WITHOUT ORDERS)`;
-    }
-    if (elRec) {
-      elRec.textContent = `${cntR} retail stores exist within ${window.oppRadius}m, but none have active PVM commercial orders. Re-pitch Mentos, Alpenliebe & Center Fresh displays.`;
+      elRec.textContent = `Prime commercial opportunity! Daily student footfall is currently unserved by PVM confectionery lines. Deploy field SR to sign up / open a retail point near this school gate.`;
     }
   } else {
     if (elStatusBanner) {
@@ -5339,10 +5254,10 @@ function openOppModal(item) {
     }
     if (elStatusBadge) {
       elStatusBadge.style.color = '#10b981';
-      elStatusBadge.textContent = `🟢 WELL COVERED (${cntR} ACTIVE PVM BUYERS)`;
+      elStatusBadge.textContent = `🟢 OUTLET AVAILABLE (${cntR} PVM STORES WITHIN ${window.oppRadius}M)`;
     }
     if (elRec) {
-      elRec.textContent = `Healthy commercial coverage. Maintain regular SR visit frequency and restock fast-moving candy lines.`;
+      elRec.textContent = `Existing retail store operates within student walking distance. Ensure primary placement of Center Fresh, Mentos & Alpenliebe jars.`;
     }
   }
 
@@ -5365,7 +5280,7 @@ function downloadOpportunityLeadsCSV() {
     return;
   }
 
-  let csv = '\ufeffSL,Institution_ID,Institution_Name,Bengali_Name,Category,Division,District,Upazila,Latitude,Longitude,Distance_to_Nearest_PVM_Outlet_Meters,Nearest_PVM_Outlet_Name,Nearest_PVM_Outlet_Code,Nearest_Store_Status,Outlets_Within_Radius,Status_At_Radius,Google_Maps_Link\n';
+  let csv = '\ufeffSL,Institution_ID,Institution_Name,Bengali_Name,Category,Division,District,Upazila,Status,Has_Outlet_In_Radius,Outlets_Within_Radius,Nearest_Outlet_Distance_Meters,Nearest_PVM_Outlet_Name,Nearest_PVM_Outlet_Code,Latitude,Longitude,Google_Maps_Link\n';
 
   window.oppDataFiltered.forEach((item, idx) => {
     const r = item.rec;
@@ -5379,14 +5294,14 @@ function downloadOpportunityLeadsCSV() {
       `"${(r[18]||'').replace(/"/g, '""')}"`,
       `"${(r[5]||'').replace(/"/g, '""')}"`,
       `"${(r[4]||'').replace(/"/g, '""')}"`,
-      r[0],
-      r[1],
+      item.hasOutlet ? '"Covered"' : '"New Store Opportunity"',
+      item.hasOutlet ? '"YES"' : '"NO"',
+      item.countInRadius,
       r[6],
       `"${(r[9]||'').replace(/"/g, '""')}"`,
       `"${(r[8]||'').replace(/"/g, '""')}"`,
-      r[10],
-      item.countInRadius,
-      item.dynStatus,
+      r[0],
+      r[1],
       `"${gmaps}"`
     ];
     csv += row.join(',') + '\n';
@@ -5397,7 +5312,7 @@ function downloadOpportunityLeadsCSV() {
   const a = document.createElement('a');
   a.href = url;
   const scopeName = (window.oppScope === 'AUTO' && activeDivision) ? activeDivision : (window.oppScope || 'ALL');
-  a.download = `PVM_Educational_Opportunity_Leads_${scopeName}_${window.oppRadius}m.csv`;
+  a.download = `PVM_Educational_Store_Opportunity_Leads_${scopeName}_${window.oppRadius}m.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
