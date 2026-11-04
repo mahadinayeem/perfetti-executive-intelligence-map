@@ -1622,21 +1622,25 @@ aside::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
   </div>
 </div>
 
-<!-- Opportunity Legend Overlay -->
+<!-- Opportunity Legend Overlay (3-Tier Proximity) -->
 <div class="opp-legend-box" id="oppLegend" style="display:none;">
   <div style="font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px;">
-    🎓 Institutional Retail Opportunity Legend
+    🎓 Student Footfall Proximity Legend
+  </div>
+  <div class="opp-leg-item" style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+    <div style="width:10px;height:10px;border-radius:50%;background:#10b981;border:1.5px solid #fff;box-shadow:0 0 6px rgba(16,185,129,0.8);flex-shrink:0;"></div>
+    <span style="font-size:11.5px;font-weight:700;color:#fff;">🟢 স্কুল গেট কভার্ড <span style="color:#34d399;font-weight:500;">(১০০ মিটারের মধ্যে স্টোর আছে)</span></span>
+  </div>
+  <div class="opp-leg-item" style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+    <div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;border:1.5px solid #fff;box-shadow:0 0 6px rgba(245,158,11,0.8);flex-shrink:0;"></div>
+    <span style="font-size:11.5px;font-weight:700;color:#fff;">🟡 ওয়াকিং রেঞ্জ <span style="color:#fbbf24;font-weight:500;">(১০০–২০০ মিটারের মধ্যে স্টোর)</span></span>
   </div>
   <div class="opp-leg-item" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
     <div style="width:10px;height:10px;border-radius:50%;background:#ef4444;border:1.5px solid #fff;box-shadow:0 0 6px rgba(239,68,68,0.8);flex-shrink:0;"></div>
-    <span style="font-size:12px;font-weight:700;color:#fff;">🔴 New Store Opportunity <span style="color:#f87171;font-weight:500;">(0 Outlets in 100–200m)</span></span>
+    <span style="font-size:11.5px;font-weight:700;color:#fff;">🔴 নতুন স্টোর সুযোগ <span style="color:#f87171;font-weight:500;">(২০০ মিটারের মধ্যে কোনো স্টোর নেই)</span></span>
   </div>
-  <div class="opp-leg-item" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-    <div style="width:10px;height:10px;border-radius:50%;background:#10b981;border:1.5px solid #fff;box-shadow:0 0 6px rgba(16,185,129,0.8);flex-shrink:0;"></div>
-    <span style="font-size:12px;font-weight:700;color:#fff;">🟢 Outlet Available <span style="color:#34d399;font-weight:500;">(PVM Store in 100–200m)</span></span>
-  </div>
-  <div style="font-size: 10.5px; color: #64748b; margin-top: 6px; line-height: 1.3;">
-    Small dots show student footfall locations. Red = Opportunity to open new retail outlet.
+  <div style="font-size: 10px; color: #64748b; margin-top: 4px; line-height: 1.3;">
+    সবুজ = গেট কভার্ড | হলুদ = ওয়াকিং রেঞ্জ | লাল = অবিলম্বে দোকান খোলার অপরচুনিটি
   </div>
 </div>
 
@@ -5037,6 +5041,8 @@ function analyzeNearbyPVMStores(schoolLat, schoolLng, divName, distName, thanaNa
     return (Math.abs(o[0] - schoolLat) <= 0.012 && Math.abs(o[1] - schoolLng) <= 0.012);
   });
 
+  const within100 = [];
+  const between100and200 = [];
   const within200 = [];
   const within500 = [];
   let nearest = null;
@@ -5065,16 +5071,41 @@ function analyzeNearbyPVMStores(schoolLat, schoolLng, divName, distName, thanaNa
       nearest = item;
     }
 
-    if (d <= (window.oppRadius || 200)) {
+    if (d <= 100) {
+      within100.push(item);
+      within200.push(item);
+    } else if (d <= 200) {
+      between100and200.push(item);
       within200.push(item);
     }
+
     if (d <= 500) {
       within500.push(item);
     }
   }
 
+  within100.sort((a, b) => a.distM - b.distM);
+  between100and200.sort((a, b) => a.distM - b.distM);
   within200.sort((a, b) => a.distM - b.distM);
   within500.sort((a, b) => a.distM - b.distM);
+
+  // 3-Tier Classification:
+  // 🟢 GREEN: within 100m
+  // 🟡 YELLOW: between 100m and 200m
+  // 🔴 RED: no store within 200m
+  let tier = 'RED';
+  let tierColor = '#ef4444';
+  let tierBadgeText = '🔴 নতুন স্টোর সুযোগ (> ২০০মি)';
+
+  if (within100.length > 0) {
+    tier = 'GREEN';
+    tierColor = '#10b981';
+    tierBadgeText = '🟢 স্কুল গেট কভার্ড (< ১০০মি)';
+  } else if (between100and200.length > 0) {
+    tier = 'YELLOW';
+    tierColor = '#f59e0b';
+    tierBadgeText = '🟡 ওয়াকিং রেঞ্জ (১০০–২০০মি)';
+  }
 
   const c500 = within500.length;
   let densityCategory = 'স্বল্প বাণিজ্যিক এলাকা';
@@ -5100,6 +5131,8 @@ function analyzeNearbyPVMStores(schoolLat, schoolLng, divName, distName, thanaNa
   }
 
   return {
+    within100: within100,
+    between100and200: between100and200,
     within200: within200,
     within500: within500,
     nearest: nearest,
@@ -5108,7 +5141,9 @@ function analyzeNearbyPVMStores(schoolLat, schoolLng, divName, distName, thanaNa
     estMin: estMin,
     estMax: estMax,
     c500: c500,
-    isCovered: within200.length > 0
+    tier: tier,
+    tierColor: tierColor,
+    tierBadgeText: tierBadgeText
   };
 }
 window.analyzeNearbyPVMStores = analyzeNearbyPVMStores;
@@ -5126,18 +5161,12 @@ function renderOpportunityHubs() {
   if (typeof microOutletLayer !== 'undefined' && microOutletLayer) microOutletLayer.clearLayers();
   if (typeof clusterGrp !== 'undefined' && clusterGrp) clusterGrp.clearLayers();
 
-  const radiusCol = {
-    100: 16,
-    200: 11,
-    300: 17,
-    500: 12
-  }[window.oppRadius] || 11;
-
   const selScope = window.oppScope || 'AUTO';
   const inScopeHubs = [];
 
-  let cntGap = 0;       // 🔴 Red: 0 outlets within 200m
-  let cntCovered = 0;   // 🟢 Green: Has outlet within 200m
+  let cntGreen = 0;   // 🟢 Green: <= 100m
+  let cntYellow = 0;  // 🟡 Yellow: 100-200m
+  let cntRed = 0;     // 🔴 Red: > 200m (Gap)
 
   for (let i = 0; i < rawRecords.length; i++) {
     const r = rawRecords[i];
@@ -5161,36 +5190,43 @@ function renderOpportunityHubs() {
       if (rDiv !== target && rDist !== target) continue;
     }
 
-    const countInRadius = r[radiusCol] || 0;
-    const hasOutlet = (countInRadius > 0);
-    const dynStatus = hasOutlet ? 'COVERED' : 'GAP';
+    const c100 = r[16] || 0;
+    const c200 = r[11] || 0;
 
-    if (hasOutlet) {
-      cntCovered++;
+    let tier = 'RED';
+    if (c100 > 0) {
+      tier = 'GREEN';
+      cntGreen++;
+    } else if (c200 > 0) {
+      tier = 'YELLOW';
+      cntYellow++;
     } else {
-      cntGap++;
+      tier = 'RED';
+      cntRed++;
     }
 
     inScopeHubs.push({
       rec: r,
-      dynStatus: dynStatus,
-      countInRadius: countInRadius,
-      hasOutlet: hasOutlet
+      dynStatus: tier,
+      c100: c100,
+      c200: c200
     });
   }
 
   // Update KPI counters
   const totalInScope = inScopeHubs.length;
-  const pctGap = totalInScope > 0 ? ((cntGap / totalInScope) * 100).toFixed(1) : '0';
+  const pctGap = totalInScope > 0 ? ((cntRed / totalInScope) * 100).toFixed(1) : '0';
 
   const elTot = document.getElementById('oppValTotal');
   const elGap = document.getElementById('oppValGap');
+  const elRisk = document.getElementById('oppValRisk');
   const elCov = document.getElementById('oppValCovered');
   const elPct = document.getElementById('oppValPct');
 
   if (elTot) elTot.textContent = totalInScope.toLocaleString();
-  if (elGap) elGap.textContent = cntGap.toLocaleString();
-  if (elCov) elCov.textContent = cntCovered.toLocaleString();
+  if (elGap) elGap.textContent = cntRed.toLocaleString();       // 🔴 Red: > 200m
+  if (elRisk) elRisk.textContent = cntYellow.toLocaleString();   // 🟡 Yellow: 100-200m
+  if (elCov) elCov.textContent = cntGreen.toLocaleString();      // 🟢 Green: < 100m
   if (elPct) elPct.textContent = `${pctGap}%`;
 
   // Filter by Category and Status
@@ -5206,10 +5242,11 @@ function renderOpportunityHubs() {
       if (!cat.includes(target) && !target.includes(cat)) continue;
     }
 
-    // Status check (All, GAP/Red, COVERED/Green)
+    // Status check
     if (window.oppStatus !== 'ALL') {
-      if (window.oppStatus === 'GAP' && item.hasOutlet) continue;
-      if (window.oppStatus === 'COVERED' && !item.hasOutlet) continue;
+      if (window.oppStatus === 'GAP' && item.dynStatus !== 'RED') continue;
+      if ((window.oppStatus === 'AT_RISK' || window.oppStatus === 'YELLOW') && item.dynStatus !== 'YELLOW') continue;
+      if ((window.oppStatus === 'COVERED' || window.oppStatus === 'GREEN') && item.dynStatus !== 'GREEN') continue;
     }
 
     window.oppDataFiltered.push(item);
@@ -5227,8 +5264,8 @@ function renderOpportunityHubs() {
     const divName = r[18] || 'Dhaka';
 
     const analysis = analyzeNearbyPVMStores(lat, lng, divName, dist, upazila);
-    const hasOutlet = analysis.isCovered;
-    const dotColor = hasOutlet ? '#10b981' : '#ef4444';
+    const tier = analysis.tier;
+    const dotColor = analysis.tierColor;
 
     const cm = L.circleMarker([lat, lng], {
       radius: 4.5,
@@ -5242,27 +5279,51 @@ function renderOpportunityHubs() {
     });
 
     let tooltipContent = '';
-    if (hasOutlet) {
-      const storeListHtml = analysis.within200.slice(0, 3).map(s => 
+    if (tier === 'GREEN') {
+      const storeListHtml = analysis.within100.slice(0, 3).map(s => 
         `<div style="display:flex;justify-content:space-between;gap:8px;"><span>• <b>${s.name}</b></span><span style="color:#34d399;font-weight:700;">${s.distM} মি.</span></div>`
       ).join('');
-      const moreText = analysis.within200.length > 3 ? `<div style="color:#94a3b8;font-size:10px;margin-top:2px;">+ আরও ${analysis.within200.length - 3}টি সক্রিয় PVM স্টোর রয়েছে</div>` : '';
+      const moreText = analysis.within100.length > 3 ? `<div style="color:#94a3b8;font-size:10px;margin-top:2px;">+ আরও ${analysis.within100.length - 3}টি গেট স্টোর রয়েছে</div>` : '';
 
       tooltipContent = `
-        <div style="font-family:'Outfit',sans-serif;font-size:12px;padding:3px;min-width:230px;">
+        <div style="font-family:'Outfit',sans-serif;font-size:12px;padding:3px;min-width:235px;">
           <div style="color:#10b981;font-weight:900;text-transform:uppercase;font-size:10.5px;margin-bottom:2px;display:flex;align-items:center;gap:4px;">
-            <span>🟢 স্কুল কভার্ড</span> <span>(${analysis.within200.length}টি PVM স্টোর ২০০মি-এ)</span>
+            <span>🟢 স্কুল গেট কভার্ড</span> <span>(${analysis.within100.length}টি স্টোর < ১০০মি)</span>
           </div>
           <div style="font-weight:900;font-size:13px;color:#fff;margin-bottom:3px;">${name}</div>
           <div style="font-size:11px;color:#94a3b8;line-height:1.4;">
             • ধরন: <b style="color:#38bdf8;">${cat}</b> (${upazila}, ${dist})<br>
           </div>
           <div style="margin-top:4px;border-top:1px dashed rgba(255,255,255,0.25);padding-top:4px;font-size:11px;color:#e2e8f0;">
-            <div style="font-weight:800;color:#a7f3d0;margin-bottom:3px;">🛍️ ২০০ মিটারের ভেতরের পারফেত্তি দোকান:</div>
+            <div style="font-weight:800;color:#a7f3d0;margin-bottom:3px;">🛍️ ১০০ মিটারের ভেতরের পারফেত্তি দোকান:</div>
             ${storeListHtml}
             ${moreText}
           </div>
-          <div style="font-size:10.5px;color:#38bdf8;font-weight:700;margin-top:5px;">👉 ক্লিক করে সম্পূর্ণ আউটলেট লিস্ট ও বিবরণ দেখুন</div>
+          <div style="font-size:10.5px;color:#38bdf8;font-weight:700;margin-top:5px;">👉 ক্লিক করে সম্পূর্ণ বিবরণ দেখুন</div>
+        </div>
+      `;
+    } else if (tier === 'YELLOW') {
+      const storeListHtml = analysis.between100and200.slice(0, 3).map(s => 
+        `<div style="display:flex;justify-content:space-between;gap:8px;"><span>• <b>${s.name}</b></span><span style="color:#fbbf24;font-weight:700;">${s.distM} মি.</span></div>`
+      ).join('');
+      const moreText = analysis.between100and200.length > 3 ? `<div style="color:#94a3b8;font-size:10px;margin-top:2px;">+ আরও ${analysis.between100and200.length - 3}টি স্টোর রয়েছে</div>` : '';
+
+      tooltipContent = `
+        <div style="font-family:'Outfit',sans-serif;font-size:12px;padding:3px;min-width:240px;">
+          <div style="color:#f59e0b;font-weight:900;text-transform:uppercase;font-size:10.5px;margin-bottom:2px;display:flex;align-items:center;gap:4px;">
+            <span>🟡 ওয়াকিং রেঞ্জ</span> <span>(${analysis.between100and200.length}টি স্টোর ১০০–২০০মি)</span>
+          </div>
+          <div style="font-weight:900;font-size:13px;color:#fff;margin-bottom:3px;">${name}</div>
+          <div style="font-size:11px;color:#94a3b8;line-height:1.4;">
+            • ধরন: <b style="color:#38bdf8;">${cat}</b> (${upazila}, ${dist})<br>
+          </div>
+          <div style="margin-top:4px;border-top:1px dashed rgba(255,255,255,0.25);padding-top:4px;font-size:11px;color:#e2e8f0;">
+            <div style="font-weight:800;color:#fde68a;margin-bottom:3px;">🚶 ১০০–২০০ মিটারের ভেতরের দোকান:</div>
+            ${storeListHtml}
+            ${moreText}
+            <div style="font-size:10px;color:#cbd5e1;margin-top:3px;">💡 ১০০মি গেট সংলগ্ন নতুন দোকান খোলার সুযোগ রয়েছে</div>
+          </div>
+          <div style="font-size:10.5px;color:#38bdf8;font-weight:700;margin-top:5px;">👉 ক্লিক করে সম্পূর্ণ বিবরণ দেখুন</div>
         </div>
       `;
     } else {
@@ -5326,8 +5387,7 @@ function openOppModal(item) {
   const divName = r[18] || 'Dhaka';
 
   const analysis = analyzeNearbyPVMStores(lat, lng, divName, dist, upazila);
-  const hasOutlet = analysis.isCovered;
-  const rad = window.oppRadius || 200;
+  const tier = analysis.tier;
 
   const elName = document.getElementById('oppMName');
   const elSub = document.getElementById('oppMSub');
@@ -5353,7 +5413,6 @@ function openOppModal(item) {
   if (elNameBn) elNameBn.textContent = r[14] || name;
   if (elCat) elCat.textContent = cat;
   if (elTerritory) elTerritory.textContent = `${upazila}, ${dist} (${divName})`;
-  if (elCnt200) elCnt200.textContent = hasOutlet ? `${analysis.within200.length} টি PVM আউটলেট (${rad} মিটারে)` : `০ টি আউটলেট (${rad} মিটারে)`;
   if (elDensityFootprint) elDensityFootprint.textContent = analysis.densityCategory;
 
   const nearest = analysis.nearest;
@@ -5377,20 +5436,21 @@ function openOppModal(item) {
     elEstDemand.textContent = `~৳${estVal.toLocaleString()} / mo Potential`;
   }
 
-  if (hasOutlet) {
-    // 🟢 GREEN: Show list of actual PVM stores
+  if (tier === 'GREEN') {
+    // 🟢 GREEN: Immediate Gate Coverage (< 100m)
+    if (elCnt200) elCnt200.textContent = `${analysis.within100.length} টি PVM আউটলেট (১০০ মিটারে)`;
     if (elStatusBanner) {
       elStatusBanner.style.background = 'rgba(16, 185, 129, 0.15)';
       elStatusBanner.style.border = '1px solid rgba(16, 185, 129, 0.4)';
     }
     if (elStatusBadge) {
       elStatusBadge.style.color = '#10b981';
-      elStatusBadge.textContent = `🟢 COVERED YOUTH HUB (${analysis.within200.length} PVM STORES IN ${rad}M)`;
+      elStatusBadge.textContent = `🟢 IMMEDIATE GATE COVERAGE (${analysis.within100.length} PVM STORES < 100M)`;
     }
     if (elNearbyBox) elNearbyBox.style.display = 'block';
-    if (elNearbyCount) elNearbyCount.textContent = `${analysis.within200.length} Stores Found`;
+    if (elNearbyCount) elNearbyCount.textContent = `${analysis.within100.length} Stores in 100m`;
     if (elNearbyList) {
-      elNearbyList.innerHTML = analysis.within200.map((s, idx) => `
+      elNearbyList.innerHTML = analysis.within100.map((s, idx) => `
         <div style="background:rgba(255,255,255,0.05);padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;">
           <div>
             <b style="color:#fff;">${idx+1}. ${s.name}</b> <span style="font-size:10px;color:#94a3b8;">(#${s.id})</span><br>
@@ -5402,20 +5462,52 @@ function openOppModal(item) {
     }
     if (elPotentialBadge) {
       elPotentialBadge.style.background = '#10b981';
-      elPotentialBadge.textContent = 'কভারেজ সক্রিয়';
+      elPotentialBadge.textContent = 'গেট কভারেজ সক্রিয়';
     }
     if (elRec) {
-      elRec.innerHTML = `স্কুল গেটের ${rad} মিটার হাঁটার দূরত্বের মধ্যে ইতোমধ্যে <b>${analysis.within200.length}টি পারফেত্তি পার্টনার স্টোর</b> সক্রিয় রয়েছে। ছাত্র-ছাত্রীদের টিফিন ও ছুটির সময়ে চাহিদা মেটাতে এই দোকানগুলোতে <b>Center Fresh 50-Jar, Alpenliebe ও Chupa Chups</b> নিয়মিত স্টক রাখা নিশ্চিত করুন।`;
+      elRec.innerHTML = `স্কুল গেটের <b>১০০ মিটারের মধ্যে ইতোমধ্যে ${analysis.within100.length}টি পারফেত্তি পার্টনার স্টোর</b> সক্রিয় রয়েছে। প্রতিদিনের ছাত্র-ছাত্রীদের টিফিন ও ছুটির সময়ের চাহিদা পূরণে এই দোকানগুলোতে <b>Center Fresh 50-Jar, Alpenliebe ও Chupa Chups</b> সর্বদা ভিজিবল ডিসপ্লেতে রাখা নিশ্চিত করুন।`;
+    }
+  } else if (tier === 'YELLOW') {
+    // 🟡 YELLOW: Secondary Walking Range (100m - 200m)
+    if (elCnt200) elCnt200.textContent = `${analysis.between100and200.length} টি PVM আউটলেট (১০০–২০০ মিটারে)`;
+    if (elStatusBanner) {
+      elStatusBanner.style.background = 'rgba(245, 158, 11, 0.15)';
+      elStatusBanner.style.border = '1px solid rgba(245, 158, 11, 0.4)';
+    }
+    if (elStatusBadge) {
+      elStatusBadge.style.color = '#f59e0b';
+      elStatusBadge.textContent = `🟡 SECONDARY WALKING RANGE (${analysis.between100and200.length} STORES IN 100M–200M)`;
+    }
+    if (elNearbyBox) elNearbyBox.style.display = 'block';
+    if (elNearbyCount) elNearbyCount.textContent = `${analysis.between100and200.length} Stores in 100-200m`;
+    if (elNearbyList) {
+      elNearbyList.innerHTML = analysis.between100and200.map((s, idx) => `
+        <div style="background:rgba(255,255,255,0.05);padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <b style="color:#fff;">${idx+1}. ${s.name}</b> <span style="font-size:10px;color:#94a3b8;">(#${s.id})</span><br>
+            <span style="font-size:10.5px;color:#94a3b8;">SR: <b style="color:#e2e8f0;">${s.srName}</b> | 4M Sales: <b style="color:#34d399;">৳${s.rev.toLocaleString()}</b> | Orders: <b>${s.orders}</b></span>
+          </div>
+          <span style="font-family:var(--mono);font-weight:800;color:#f59e0b;font-size:12px;background:rgba(245,158,11,0.15);padding:2px 8px;border-radius:4px;">${s.distM} m</span>
+        </div>
+      `).join('');
+    }
+    if (elPotentialBadge) {
+      elPotentialBadge.style.background = '#f59e0b';
+      elPotentialBadge.textContent = 'গেট পয়েন্টে নতুন স্কোপ';
+    }
+    if (elRec) {
+      elRec.innerHTML = `স্কুল থেকে <b>১০০–২০০ মিটারের হাঁটার সীমানায় ${analysis.between100and200.length}টি পারফেত্তি স্টোর</b> রয়েছে। তবে একদম স্কুল গেটের ১০০ মিটারের ভেতরে সরাসরি কোনো পার্টনার নেই। শিক্ষার্থীদের অবিলম্বে ধরতে গেটের নিকটবর্তী ১–২টি চায়ের দোকান বা কনফেকশনারিতে পারফেত্তি ক্যান্ডি ও গাম অনবোর্ড করলে বিক্রি বহুলাংশে বৃদ্ধি পাবে।`;
     }
   } else {
-    // 🔴 RED: Real Map Analysis & New Store Opening Opportunity
+    // 🔴 RED: Opportunity Gap (> 200m)
+    if (elCnt200) elCnt200.textContent = `০ টি আউটলেট (২০০ মিটারের মধ্যে)`;
     if (elStatusBanner) {
       elStatusBanner.style.background = 'rgba(239, 68, 68, 0.15)';
       elStatusBanner.style.border = '1px solid rgba(239, 68, 68, 0.4)';
     }
     if (elStatusBadge) {
       elStatusBadge.style.color = '#ef4444';
-      elStatusBadge.textContent = `🔴 0 PVM OUTLETS IN ${rad}M (UNSERVED YOUTH HUB)`;
+      elStatusBadge.textContent = `🔴 0 PVM OUTLETS IN 200M (UNSERVED YOUTH HUB)`;
     }
     if (elNearbyBox) elNearbyBox.style.display = 'none';
     if (elPotentialBadge) {
@@ -5425,8 +5517,8 @@ function openOppModal(item) {
     if (elRec) {
       const nearStr = nearest ? `নিকটবর্তী পারফেত্তি দোকান <b>${nearest.name}</b> (${nearest.distM} মিটার দূরে) যা ছাত্র-ছাত্রীদের সরাসরি হাঁটার সীমার বাইরে।` : '';
       elRec.innerHTML = `
-        <b>ম্যাপের জিওস্পেশিয়াল বিশ্লেষণ:</b> এই শিক্ষা প্রতিষ্ঠানের ৫০০ মিটারের মধ্যে বর্তমানে মোট <b>${analysis.c500}টি বাণিজ্যিক দোকান</b> রয়েছে, কিন্তু ২০০ মিটারের প্রধান ছাত্র-ছাত্রী হাঁটার এলাকায় পারফেত্তির কোনো আউটলেট নেই।<br>
-        ${nearStr} আশেপাশের এই বাণিজ্যিক ঘনত্বের ওপর ভিত্তি করে স্কুল গেট ও সংযোগ সড়কের চিহ্নিত মুদি/কনফেকশনারি দোকানে পারফেত্তি যুক্ত করে <b>আনুমানিক ${analysis.estMin}–${analysis.estMax}টি নতুন আউটলেট</b> খোলার সরাসরি সুযোগ রয়েছে।
+        <b>ম্যাপের জিওস্পেশিয়াল বিশ্লেষণ:</b> এই শিক্ষা প্রতিষ্ঠানের ৫০০ মিটারের মধ্যে বর্তমানে মোট <b>${analysis.c500}টি বাণিজ্যিক দোকান</b> রয়েছে, কিন্তু ২০০ মিটারের ছাত্র-ছাত্রী হাঁটার এলাকায় পারফেত্তির কোনো আউটলেট নেই।<br>
+        ${nearStr} আশেপাশের এই বাণিজ্যিক ঘনত্বের ওপর ভিত্তি করে স্কুল গেট ও সংযোগ সড়কের চিহ্নিত দোকানে পারফেত্তি পণ্য অনবোর্ড করে <b>আনুমানিক ${analysis.estMin}–${analysis.estMax}টি নতুন আউটলেট</b> খোলার সরাসরি সুযোগ রয়েছে।
       `;
     }
   }
