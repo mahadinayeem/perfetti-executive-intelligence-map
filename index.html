@@ -161,15 +161,11 @@ aside::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
   color: #0369a1;
   text-shadow: 0 1px 3px rgba(255,255,255,0.95), 0 0 8px rgba(255,255,255,0.9);
   text-align: center;
-  pointer-events: auto !important;
-  cursor: pointer !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  cursor: default !important;
   white-space: nowrap;
   letter-spacing: 0.3px;
-  transition: transform 0.15s, color 0.15s;
-}
-.union-map-lbl:hover {
-  transform: scale(1.15);
-  color: #0284c7;
 }
 .union-map-lbl.sel {
   color: #0284c7;
@@ -323,11 +319,12 @@ aside::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
   cursor: pointer;
-  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s;
+  transition: box-shadow 0.15s ease, filter 0.15s ease;
   pointer-events: auto !important;
 }
 .dominant-cluster-bubble:hover {
-  transform: scale(1.18);
+  filter: brightness(1.15);
+  box-shadow: 0 0 16px rgba(255,255,255,0.85) !important;
   z-index: 9999 !important;
 }
 
@@ -2101,7 +2098,8 @@ window.addEventListener('DOMContentLoaded', () => {
   // Option 1: Majority / Dominant Color Rule (Clean, High Contrast & Fully Interactive)
   clusterGrp = L.markerClusterGroup({
     chunkedLoading: true,
-    maxClusterRadius: 40,
+    maxClusterRadius: 36,
+    disableClusteringAtZoom: 13,
     spiderfyOnMaxZoom: true,
     showCoverageOnHover: false,
     zoomToBoundsOnClick: true,
@@ -2420,7 +2418,6 @@ function drawDivisionPolygons() {
         layer.on({
           mouseover: () => {
             layer.setStyle({fillOpacity: 0.88, color: '#fff', weight: 3.5});
-            if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) layer.bringToFront();
           },
           mouseout: () => {
             layer.setStyle({fillOpacity: isDark ? 0.65 : 0.68, color: isDark ? 'rgba(255,255,255,0.40)' : 'rgba(255,255,255,0.85)', weight: 2});
@@ -2563,7 +2560,6 @@ function drawDistrictPolygons(divName, divIdx) {
           mouseover: () => {
             if (!activeDistrict || activeDistrict !== distName) {
               layer.setStyle({fillOpacity: 0.88, color: '#fff', weight: 3.5});
-              if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) layer.bringToFront();
             }
           },
           mouseout: () => {
@@ -2712,7 +2708,6 @@ function drawThanaPolygons(distName, divIdx) {
           mouseover: () => {
             if (!activeThana || activeThana !== tName) {
               layer.setStyle({fillOpacity: 0.82, color: '#fff', weight: 3});
-              if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) layer.bringToFront();
             }
           },
           mouseout: () => {
@@ -3226,8 +3221,7 @@ function drillThana(thanaName, distName, divIdx, feat) {
           layer.on({
             mouseover: () => {
               if (!activeUnion || !uFullName.toLowerCase().includes(activeUnion.toLowerCase())) {
-                layer.setStyle({fillOpacity: 0.28, color: '#00e5ff', weight: 3.5});
-                if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) layer.bringToFront();
+                layer.setStyle({fillOpacity: 0.28, color: '#00e5ff', weight: 3.2});
               }
             },
             mouseout: () => {
@@ -3244,12 +3238,6 @@ function drillThana(thanaName, distName, divIdx, feat) {
       });
 
       bounds.extend(uPoly.getBounds());
-
-      uPoly.on('click', (e) => {
-        if (e && e.originalEvent) L.DomEvent.stopPropagation(e);
-        drillUnion(uFullName, thanaName, distName, curDivIdx);
-      });
-
       unionPolyLayer.addLayer(uPoly);
 
       // Add Clean Map Typography Label & Tooltip (No bulky box)
@@ -3262,10 +3250,7 @@ function drillThana(thanaName, distName, divIdx, feat) {
         iconSize: [100, 20],
         iconAnchor: [50, 10]
       });
-      const labelMarker = L.marker(center, {icon: labelIcon, interactive: true, pane: 'markerPane'});
-      labelMarker.on('click', () => {
-        drillUnion(uFullName, thanaName, distName, curDivIdx);
-      });
+      const labelMarker = L.marker(center, {icon: labelIcon, interactive: false, pane: 'markerPane'});
       unionPolyLayer.addLayer(labelMarker);
     });
   } else {
@@ -3299,7 +3284,7 @@ function drillThana(thanaName, distName, divIdx, feat) {
   }
 
   renderInverseMask();
-  setTimeout(() => renderMicroOutlets(curDivIdx, distName, thanaName), 150);
+  renderMicroOutlets(curDivIdx, distName, thanaName);
   if (window.currentPortalMode === 'opportunity' && typeof renderOpportunityHubs === 'function') {
     renderOpportunityHubs();
   }
@@ -3400,7 +3385,7 @@ function drillUnion(unionName, thanaName, distName, divIdx) {
   updateBC();
   updateKPIs();
   updateAdminSummaryPanel();
-  setTimeout(() => renderMicroOutlets(curDivIdx, distName, thanaName), 100);
+  renderMicroOutlets(curDivIdx, distName, thanaName);
 }
 
 /* ═══════════════ RESET TO NATIONAL ═══════════════ */
@@ -3565,11 +3550,12 @@ function renderMicroOutlets(divIdx, distName, thanaName) {
       showModal(o);
     });
 
-    // Option 2: Cluster at Thana/District level, standalone individual dots at Union level
-    if (!activeUnion) {
-      if (clusterGrp) clusterGrp.addLayer(mk);
-    } else {
+    // Standalone clean micro-dots at Thana and Union level (Territory View)
+    // Clustered only at District or National level
+    if (activeThana || activeUnion) {
       if (microOutletLayer) microOutletLayer.addLayer(mk);
+    } else {
+      if (clusterGrp) clusterGrp.addLayer(mk);
     }
     
     if(heatOn) hPts.push([lat,lng, rev>0?1:0.4]);
