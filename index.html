@@ -1292,10 +1292,17 @@ aside::-webkit-scrollbar-thumb{background:var(--bdr2);border-radius:2px;}
     <div class="tb-grp">
       <span class="tb-lbl">Scope:</span>
       <select class="tb-select" id="oppDistSelect" onchange="filterOppData()">
-        <option value="METRO" selected>Dhaka Metro & Narayanganj (2,166 Hubs)</option>
-        <option value="DHAKA_DIST">Dhaka District Only (1,901 Hubs)</option>
-        <option value="NARAYANGANJ_DIST">Narayanganj Only (265 Hubs)</option>
-        <option value="ALL_DIV">Entire Dhaka Division (5,601 Hubs)</option>
+        <option value="AUTO" selected>📍 Auto-Sync with Active Map Drilldown</option>
+        <option value="METRO">Dhaka Metro & Narayanganj (2,166 Hubs)</option>
+        <option value="Chattogram">Chattogram Division (3,464 Hubs)</option>
+        <option value="Dhaka">Dhaka Division (5,601 Hubs)</option>
+        <option value="Khulna">Khulna Division (2,739 Hubs)</option>
+        <option value="Rajshahi">Rajshahi Division (2,321 Hubs)</option>
+        <option value="Rangpur">Rangpur Division (2,429 Hubs)</option>
+        <option value="Barishal">Barishal Division (2,142 Hubs)</option>
+        <option value="Mymensingh">Mymensingh Division (1,501 Hubs)</option>
+        <option value="Sylhet">Sylhet Division (1,128 Hubs)</option>
+        <option value="ALL_BD">All Bangladesh (21,325 Hubs)</option>
       </select>
     </div>
 
@@ -3420,6 +3427,8 @@ function resetNational(){
   updateAdminSummaryPanel();
   drawDivisionPolygons();
   renderInverseMask();
+
+  if ((window.isOppPortalActive || window.currentPortalMode === 'opportunity') && typeof renderOpportunityHubs === 'function') { renderOpportunityHubs(); }
 }
 
 
@@ -4862,7 +4871,7 @@ window.isOppPortalActive = false;
 window.oppRadius = 200; // 100, 200, 300, 500
 window.oppCat = 'ALL';
 window.oppStatus = 'ALL'; // 'ALL', 'GAP', 'AT_RISK', 'COVERED'
-window.oppScope = 'METRO'; // 'METRO', 'DHAKA_DIST', 'NARAYANGANJ_DIST', 'ALL_DIV'
+window.oppScope = 'AUTO'; // 'AUTO', 'METRO', 'ALL_BD', 'Chattogram', 'Dhaka', etc.
 window.oppClusterGrp = null;
 window.oppBufferLayer = null;
 window.oppDataFiltered = [];
@@ -4920,6 +4929,7 @@ function initOpportunityModule() {
 
 function toggleOppPortalMode() {
   window.isOppPortalActive = !window.isOppPortalActive;
+  window.currentPortalMode = window.isOppPortalActive ? 'opportunity' : 'retail';
   const btn = document.getElementById('oppMapBtn');
   const bar = document.getElementById('modeNavBar');
   const kpiRowOpp = document.getElementById('kpiRowOpp');
@@ -4952,7 +4962,11 @@ function toggleOppPortalMode() {
       map.addLayer(window.oppBufferLayer);
     }
 
-    map.setView([23.777, 90.405], 11);
+    // Only set view to Dhaka Metro if no active division is chosen yet!
+    if (!activeDivision && window.oppScope === 'METRO') {
+      map.setView([23.777, 90.405], 11);
+    }
+
     renderOpportunityHubs();
   } else {
     // Turn off
@@ -5031,6 +5045,20 @@ function filterOppData() {
   const sel = document.getElementById('oppDistSelect');
   if (sel) {
     window.oppScope = sel.value;
+    // If user explicitly picked a division from dropdown, zoom map to that division
+    if (window.oppScope !== 'AUTO' && window.oppScope !== 'ALL_BD' && window.oppScope !== 'METRO') {
+      const dname = window.oppScope;
+      const didx = typeof DIV_NAMES !== 'undefined' ? DIV_NAMES.indexOf(dname) : -1;
+      if (didx >= 0 && typeof drillDivision === 'function') {
+        drillDivision(didx, dname);
+        return;
+      }
+    } else if (window.oppScope === 'METRO') {
+      if (typeof drillDivision === 'function') {
+        drillDivision(0, 'Dhaka');
+        return;
+      }
+    }
   }
   renderOpportunityHubs();
 }
@@ -5039,7 +5067,7 @@ window.setOppScope = function(scope) {
   window.oppScope = scope;
   const sel = document.getElementById('oppDistSelect');
   if (sel) sel.value = scope;
-  renderOpportunityHubs();
+  filterOppData();
 };
 
 function renderOpportunityHubs() {
@@ -5062,6 +5090,7 @@ function renderOpportunityHubs() {
     500: 12
   }[window.oppRadius] || 11;
 
+  const selScope = window.oppScope || 'AUTO';
   const inScopeHubs = [];
 
   let cntGap = 0;
@@ -5070,15 +5099,26 @@ function renderOpportunityHubs() {
 
   for (let i = 0; i < rawRecords.length; i++) {
     const r = rawRecords[i];
-    const dist = (r[5] || '').toLowerCase();
-    
-    // Check Scope
-    if (window.oppScope === 'METRO') {
-      if (dist !== 'dhaka' && dist !== 'narayanganj') continue;
-    } else if (window.oppScope === 'DHAKA_DIST') {
-      if (dist !== 'dhaka') continue;
-    } else if (window.oppScope === 'NARAYANGANJ_DIST') {
-      if (dist !== 'narayanganj') continue;
+    const rDiv = (r[18] || '').toLowerCase();
+    const rDist = (r[5] || '').toLowerCase();
+    const rUpz = (r[4] || '').toLowerCase();
+
+    // 1. Division / District Scope Filtering
+    if (selScope === 'AUTO') {
+      if (activeDivision) {
+        if (rDiv !== activeDivision.toLowerCase()) continue;
+        if (activeDistrict && rDist !== activeDistrict.toLowerCase()) continue;
+        if (activeThana && rUpz !== activeThana.toLowerCase()) continue;
+      }
+      // If national view (no activeDivision), show all
+    } else if (selScope === 'METRO') {
+      if (rDist !== 'dhaka' && rDist !== 'narayanganj') continue;
+    } else if (selScope === 'ALL_BD') {
+      // Allow all nationwide
+    } else {
+      // User selected specific division from dropdown: e.g. 'Chattogram', 'Dhaka', etc.
+      const target = selScope.toLowerCase();
+      if (rDiv !== target && rDist !== target) continue;
     }
 
     const countInRadius = r[radiusCol] || 0;
@@ -5151,6 +5191,7 @@ function renderOpportunityHubs() {
     const cat = r[3];
     const upazila = r[4];
     const dist = r[5];
+    const div = r[18] || '';
     const minD = r[6];
     const st = item.dynStatus;
 
@@ -5177,6 +5218,8 @@ function renderOpportunityHubs() {
       dynStatus: st
     });
 
+    const distDisplay = minD >= 1000 ? (minD/1000).toFixed(1) + ' km' : minD.toLocaleString() + ' m';
+
     const tooltipContent = `
       <div style="font-family:'Outfit',sans-serif;font-size:12px;padding:3px;min-width:200px;">
         <div style="color:${color};font-weight:900;text-transform:uppercase;font-size:10px;margin-bottom:2px;">
@@ -5184,8 +5227,8 @@ function renderOpportunityHubs() {
         </div>
         <div style="font-weight:800;font-size:13px;color:#fff;margin-bottom:2px;">${name}</div>
         <div style="font-size:11px;color:#94a3b8;margin-bottom:4px;">
-          • Type: <b style="color:#38bdf8;">${cat}</b> (${upazila})<br>
-          • Nearest PVM Outlet: <b style="color:${minD > 200 ? '#f87171' : '#4ade80'};">${minD.toLocaleString()}m Away</b>
+          • Type: <b style="color:#38bdf8;">${cat}</b> (${upazila}, ${dist})<br>
+          • Nearest PVM Outlet: <b style="color:${minD > 200 ? '#f87171' : '#4ade80'};">${distDisplay} Away</b>
         </div>
         <div style="font-size:10.5px;color:#38bdf8;font-weight:700;">👉 Click for Onboarding Lead Profile</div>
       </div>
@@ -5232,19 +5275,30 @@ function openOppModal(item) {
   const cntR = item.countInRadius;
   const minD = r[6] || 0;
   const st = item.dynStatus;
+  const distDisplay = minD >= 1000 ? (minD/1000).toFixed(1) + ' km' : minD.toLocaleString() + ' meters';
 
   if (elName) elName.textContent = r[2];
-  if (elSub) elSub.textContent = `${r[3]} • ${r[4]}, ${r[5]}`;
+  if (elSub) elSub.textContent = `${r[3]} • ${r[4]}, ${r[5]} (${r[18] || ''} Division)`;
   if (elNameBn) elNameBn.textContent = r[14] || r[2];
   if (elCat) elCat.textContent = r[3];
-  if (elTerritory) elTerritory.textContent = `${r[4]}, ${r[5]}`;
+  if (elTerritory) elTerritory.textContent = `${r[4]}, ${r[5]} (${r[18] || ''})`;
   if (elCnt200) elCnt200.textContent = `${cntR} Outlets within ${window.oppRadius}m`;
-  if (elDistance) elDistance.textContent = `${minD.toLocaleString()}m Away`;
-  if (elNearOutlet) elNearOutlet.textContent = `${r[9] || 'No PVM Store Mapped Nearby'} (${r[8] || 'N/A'})`;
+  if (elDistance) elDistance.textContent = `${distDisplay} Away`;
+  if (elNearOutlet) {
+    if (minD > 20000) {
+      elNearOutlet.textContent = `No PVM Store within territory (Nearest: ${r[9]||'Dhaka Hub'})`;
+    } else {
+      elNearOutlet.textContent = `${r[9] || 'No PVM Store Mapped Nearby'} (${r[8] || 'N/A'})`;
+    }
+  }
 
   if (elNearStatus) {
     const s = r[10];
-    elNearStatus.textContent = s === 'G' ? '🟢 Active Buyer (Regular Orders)' : s === 'Y' ? '🟡 Visited by SR (0 Orders)' : '🔴 Untapped / Zero Sales';
+    if (minD > 20000) {
+      elNearStatus.textContent = '🔴 Untapped Geographic Region (Prime Expansion Market)';
+    } else {
+      elNearStatus.textContent = s === 'G' ? '🟢 Active Buyer (Regular Orders)' : s === 'Y' ? '🟡 Visited by SR (0 Orders)' : '🔴 Untapped / Zero Sales';
+    }
   }
 
   // Estimated demand
@@ -5261,10 +5315,10 @@ function openOppModal(item) {
     }
     if (elStatusBadge) {
       elStatusBadge.style.color = '#ef4444';
-      elStatusBadge.textContent = `🔴 OPPORTUNITY GAP (0 PVM OUTLETS WITHIN ${window.oppRadius}M)`;
+      elStatusBadge.textContent = `🔴 PRIME OPPORTUNITY GAP (0 PVM OUTLETS WITHIN ${window.oppRadius}M)`;
     }
     if (elRec) {
-      elRec.textContent = `High-priority institutional onboarding! No PVM confectionery retailer currently operates within ${window.oppRadius}m student walking radius. Deploy local SR immediately to sign up nearest retail outlet.`;
+      elRec.textContent = `High-priority institutional onboarding! No PVM confectionery retailer currently operates within ${window.oppRadius}m student walking radius. Deploy local SR immediately to capture confectionery demand.`;
     }
   } else if (st === 'AT_RISK') {
     if (elStatusBanner) {
@@ -5311,7 +5365,7 @@ function downloadOpportunityLeadsCSV() {
     return;
   }
 
-  let csv = '\ufeffSL,Institution_ID,Institution_Name,Bengali_Name,Category,District,Upazila,Latitude,Longitude,Distance_to_Nearest_PVM_Outlet_Meters,Nearest_PVM_Outlet_Name,Nearest_PVM_Outlet_Code,Nearest_Store_Status,Outlets_Within_Radius,Status_At_Radius,Google_Maps_Link\n';
+  let csv = '\ufeffSL,Institution_ID,Institution_Name,Bengali_Name,Category,Division,District,Upazila,Latitude,Longitude,Distance_to_Nearest_PVM_Outlet_Meters,Nearest_PVM_Outlet_Name,Nearest_PVM_Outlet_Code,Nearest_Store_Status,Outlets_Within_Radius,Status_At_Radius,Google_Maps_Link\n';
 
   window.oppDataFiltered.forEach((item, idx) => {
     const r = item.rec;
@@ -5322,6 +5376,7 @@ function downloadOpportunityLeadsCSV() {
       `"${(r[2]||'').replace(/"/g, '""')}"`,
       `"${(r[14]||'').replace(/"/g, '""')}"`,
       `"${(r[3]||'').replace(/"/g, '""')}"`,
+      `"${(r[18]||'').replace(/"/g, '""')}"`,
       `"${(r[5]||'').replace(/"/g, '""')}"`,
       `"${(r[4]||'').replace(/"/g, '""')}"`,
       r[0],
@@ -5341,7 +5396,8 @@ function downloadOpportunityLeadsCSV() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `PVM_Educational_Opportunity_Leads_${window.oppScope}_${window.oppRadius}m.csv`;
+  const scopeName = (window.oppScope === 'AUTO' && activeDivision) ? activeDivision : (window.oppScope || 'ALL');
+  a.download = `PVM_Educational_Opportunity_Leads_${scopeName}_${window.oppRadius}m.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
